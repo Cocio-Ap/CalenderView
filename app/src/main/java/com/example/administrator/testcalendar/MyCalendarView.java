@@ -4,17 +4,19 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import rx.Subscription;
+import rx.functions.Action1;
+import rx.functions.Func1;
 
 /**
  * Created by Administrator on 2017\12\12
@@ -23,11 +25,13 @@ import java.util.Map;
 public class MyCalendarView extends View {
     private Paint textBlackPaint;
     private Paint textWhitePaint;
+    private Paint textCurrentDayPaint;
     private Paint titleDayPaint;
     private Paint titleLinePaint;
     private Paint monthPaint;
     private Paint circlePaint;
     private Paint dayLinePaint;
+    private Paint currentDayCirclePaint;
     private Context mContext;
     //屏幕宽度
     private int width;
@@ -37,8 +41,16 @@ public class MyCalendarView extends View {
     private int radius = 20;
     //天数
     private int sumDay;
-    //选中日期列表
-    private List<Integer> clickDayList;
+    //当天
+    //默认为0,表示不是赋值的日期不是实时的日期/非0表示实时的日期
+    private int currentDay;
+    //选中的日期列表
+    //表内数据是按升序排列的
+    private List<CalendarData> clickCalList;
+    //初始化日期
+    private CalendarData defaultData;
+    private Subscription rxSubscription;
+
 
     public MyCalendarView(Context context) {
         super(context);
@@ -60,13 +72,14 @@ public class MyCalendarView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if(defaultData == null) return;
+
         drawTitleDay(canvas);
         drawTitleLine(canvas);
         drawMonth(canvas);
         drawDay2DayLine(canvas);
-        drawDayCircle(canvas);
-        drawDay(canvas, 31);
-
+        drawClickDayCircle(canvas);
+        drawDay(canvas);
     }
 
     private int downX = 0, downY = 0;
@@ -94,6 +107,29 @@ public class MyCalendarView extends View {
         return true;
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (!rxSubscription.isUnsubscribed()){
+            rxSubscription.unsubscribe();
+        }
+    }
+
+    /**
+     *
+     * @param defaultData 赋值日期
+     * @param clickCalList 选中的日期列表
+     *                     表内数据需按升序排列
+     */
+    public void init(CalendarData defaultData,List<CalendarData> clickCalList){
+        if(defaultData == null || clickCalList == null) return;
+        this.defaultData = defaultData;
+        this.sumDay = DateUtils.getDays(defaultData.year,defaultData.month);
+        this.currentDay = getCurrentDay(defaultData.year,defaultData.month);
+        this.clickCalList = clickCalList;
+        invalidate();
+    }
+
     private void initPaint() {
         titleDayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         titleDayPaint.setTextSize(DensityUtil.sp2px(mContext, 15));
@@ -117,14 +153,36 @@ public class MyCalendarView extends View {
         textWhitePaint.setTextSize(DensityUtil.sp2px(mContext, 15));
         textWhitePaint.setColor(mContext.getResources().getColor(R.color.white));
 
+        textCurrentDayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textCurrentDayPaint.setTextSize(DensityUtil.sp2px(mContext, 15));
+        textCurrentDayPaint.setColor(mContext.getResources().getColor(R.color.color_00a6f5));
+
         dayLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         dayLinePaint.setTextSize(DensityUtil.sp2px(mContext, 15));
         dayLinePaint.setColor(mContext.getResources().getColor(R.color.color_d9f2fe));
+
+        currentDayCirclePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        currentDayCirclePaint.setColor(mContext.getResources().getColor(R.color.color_bfe9fc));
     }
 
     private void initData() {
         dayMap = new HashMap<>();
-        clickDayList = new ArrayList<>();
+        //监听传来的选中点集合
+        rxSubscription = RxBus.getInstance().toObserverable(CalendarListData.class)
+                .map(new Func1<CalendarListData, List<CalendarData>>() {
+                    @Override
+                    public List<CalendarData> call(CalendarListData calendarListData) {
+                        return calendarListData.mCalData;
+                    }
+                })
+                .subscribe(new Action1<List<CalendarData>>() {
+
+                    @Override
+                    public void call(List<CalendarData> data){
+                        clickCalList = data;
+                        invalidate();
+                    }
+                });
     }
 
     /**
@@ -163,16 +221,16 @@ public class MyCalendarView extends View {
      * 绘制月份
      */
     private void drawMonth(Canvas canvas) {
-        canvas.drawText("2017年10月", DensityUtil.dip2px(mContext, 20), DensityUtil.dip2px(mContext, 80), monthPaint);
+        String text = String.valueOf(defaultData.year) + "年" + String.valueOf(defaultData.month) + "月";
+        canvas.drawText(text, DensityUtil.dip2px(mContext, 20), DensityUtil.dip2px(mContext, 80), monthPaint);
     }
 
     /**
      * 绘制日历
      *
      * @param canvas
-     * @param day    当月天数
      */
-    private void drawDay(Canvas canvas, int day) {
+    private void drawDay(Canvas canvas) {
         //默认文本
         String defaultText = "20";
         //初始X坐标（dp）
@@ -194,47 +252,82 @@ public class MyCalendarView extends View {
         //日期之间的高度
         int perHeight = defaultHeight + textHeight;
         //日期是否被选中
-        boolean isDayChoosen = false;
+        boolean isDayChoose = false;
         Paint paint;
-        String text = null;
-        this.sumDay = day;
+        String text;
 
-        for (int i = 0; i < day; i++) {
+        for (int i = 0; i < sumDay; i++) {
             int x = DensityUtil.dip2px(mContext, defaultX) + perWidth * (i % 7);
             int y = DensityUtil.dip2px(mContext, defaultY + perHeight * (i / 7));
             float radiusX = x + textWidth / 2;
             float radiusY = y - textHeight / 2;
 
+            //将日期圆的半径存起来
+            DayPoint dayPoint = new DayPoint(radiusX, radiusY);
+            dayMap.put(i + 1, dayPoint);
+
+            //currentDay默认为0,表示不是赋值的日期不是实时的日期/非0表示实时的日期
+            //如果是当天，还需要绘制当天的圆
+            if(currentDay == i+1){
+                boolean isCurrentDayChoose = false;
+                //判断当天是否被选中
+                if(clickCalList != null && clickCalList.size() != 0){
+                    for (int j = 0; j < clickCalList.size(); j++) {
+                        CalendarData data = clickCalList.get(j);
+                        if(data == null || CalendarUtil.compareClaMonth(data,defaultData) != CalendarUtil.DATA_EQUAL) continue;
+                        int day = data.day;
+                        if(day == currentDay){
+                            isCurrentDayChoose = true;
+                            break;
+                        }
+                    }
+                }
+                //当天不被选中绘制圆
+                if(!isCurrentDayChoose) canvas.drawCircle(dayPoint.x, dayPoint.y, DensityUtil.dip2px(mContext, radius), currentDayCirclePaint);
+            }
+
             //绘制字体
-            if (clickDayList.size() != 0) {
-                for (Integer mDay : clickDayList) {
-                    if (mDay == i + 1) {
-                        isDayChoosen = true;
+            if (clickCalList.size() != 0) {
+                for (CalendarData data : clickCalList) {
+                    if(data == null || CalendarUtil.compareClaMonth(data,defaultData) != CalendarUtil.DATA_EQUAL) continue;
+                    if (data.day == i + 1) {
+                        isDayChoose = true;
                         break;
                     }
                 }
             }
-            paint = isDayChoosen ? textWhitePaint : textBlackPaint;
+            //选中字体为白色
+            //没选中字体:如果是实时当天，则为蓝色；否则为黑色
+            if(isDayChoose){
+                paint = textWhitePaint;
+            }else if(currentDay == i+1){
+                paint = textCurrentDayPaint;
+            }else{
+                paint = textBlackPaint;
+            }
+            //单位数天数加个空格
             text = i + 1 < 10 ? " " + String.valueOf(i + 1) : String.valueOf(i + 1);
             canvas.drawText(text, x, y, paint);
-            isDayChoosen = false;
-            //将日期圆的半径存起来
-            DayPoint dayPoint = new DayPoint(radiusX, radiusY);
-            dayMap.put(i + 1, dayPoint);
+            isDayChoose = false;
         }
     }
 
     /**
-     * 绘制选中圆
+     * 绘制选中时的圆
      *
      * @param canvas
      */
-    private void drawDayCircle(Canvas canvas) {
-        if (dayMap == null || clickDayList == null || clickDayList.size() == 0) return;
-        for (int i = 0; i < clickDayList.size(); i++) {
-            int day = clickDayList.get(i);
-            DayPoint point = dayMap.get(day);
-            canvas.drawCircle(point.x, point.y, DensityUtil.dip2px(mContext, radius), circlePaint);
+    private void drawClickDayCircle(Canvas canvas) {
+        if (dayMap.size() == 0 || clickCalList == null || clickCalList.size() == 0) return;
+        //绘制选中圆
+        for (int i = 0; i < clickCalList.size(); i++) {
+            CalendarData data = clickCalList.get(i);
+            if(data == null) return;
+            if(CalendarUtil.compareClaMonth(data,defaultData) == CalendarUtil.DATA_EQUAL){
+                int day = data.day;
+                DayPoint point = dayMap.get(day);
+                canvas.drawCircle(point.x, point.y, DensityUtil.dip2px(mContext, radius), circlePaint);
+            }
         }
     }
 
@@ -244,9 +337,47 @@ public class MyCalendarView extends View {
      * @param canvas
      */
     private void drawDay2DayLine(Canvas canvas) {
-        if (dayMap == null || clickDayList == null || clickDayList.size() != 2) return;
-        int firstDay = clickDayList.get(0);
-        int lastDay = clickDayList.get(1);
+        if (dayMap.size() == 0 || clickCalList == null || clickCalList.size() != 2) return;
+        CalendarData d1 = clickCalList.get(0);
+        CalendarData d2 = clickCalList.get(1);
+        if(d1 == null || d2 == null) return;
+
+        int firstDay = 0;
+        int lastDay = 0;
+        if(CalendarUtil.compareClaMonth(d1,defaultData) == CalendarUtil.DATA_LESS){
+            //d1的月份小于当前页面的月份
+            switch (CalendarUtil.compareClaMonth(d2,defaultData)){
+                case CalendarUtil.DATA_LESS:
+                    //不绘制
+                    break;
+                case CalendarUtil.DATA_EQUAL:
+                    firstDay = 1;
+                    lastDay = d2.day;
+                    break;
+                case CalendarUtil.DATA_MORE:
+                    firstDay = 1;
+                    lastDay = sumDay;
+                    break;
+            }
+        }else if(CalendarUtil.compareClaMonth(d1,defaultData) == CalendarUtil.DATA_EQUAL) {
+            //d1的月份等于当前页面的月份
+            switch (CalendarUtil.compareClaMonth(d2, defaultData)) {
+                case CalendarUtil.DATA_EQUAL:
+                    firstDay = d1.day;
+                    lastDay = d2.day;
+                    break;
+                case CalendarUtil.DATA_MORE:
+                    firstDay = d1.day;
+                    lastDay = sumDay;
+                    break;
+            }
+        }else if(CalendarUtil.compareClaMonth(d1,defaultData) == CalendarUtil.DATA_MORE) {
+            //d1的月份大于当前页面的月份
+            //不绘制
+            }
+
+        if(firstDay == 0 || lastDay == 0) return;
+
         int startRow = ((firstDay - 1) / 7) + 1;
         int endRow = ((lastDay - 1) / 7) + 1;
         Rect rect;
@@ -256,47 +387,23 @@ public class MyCalendarView extends View {
         for (int i = startRow; i <= endRow; i++) {
             if (i == startRow) { //连线的第一行
                 startPoint = dayMap.get(firstDay);
-                if (i == endRow) { //连线只有一行
-                    endPoint = dayMap.get(lastDay);
-                } else { //连线不止一行
-                    endPoint = dayMap.get(i * 7);
-                    canvas.drawCircle(endPoint.x, endPoint.y, DensityUtil.dip2px(mContext, radius), dayLinePaint);
-                }
+                endPoint = (i== endRow) ? dayMap.get(lastDay) : dayMap.get(i * 7);
                 rect = new Rect((int) startPoint.x,
                         (int) startPoint.y - DensityUtil.dip2px(mContext, radius),
                         (int) endPoint.x,
                         (int) endPoint.y + DensityUtil.dip2px(mContext, radius));
             } else { //连线的其他行
                 startPoint = dayMap.get((i - 1) * 7 + 1);
-                if (i == endRow) { //连线的最后一行
-                    endPoint = dayMap.get(lastDay);
-                } else { //非最后一行
-                    endPoint = dayMap.get(i * 7);
-                    canvas.drawCircle(endPoint.x, endPoint.y, DensityUtil.dip2px(mContext, radius), dayLinePaint);
-                }
-                canvas.drawCircle(startPoint.x, startPoint.y, DensityUtil.dip2px(mContext, radius), dayLinePaint);
+                endPoint = (i== endRow) ? dayMap.get(lastDay) : dayMap.get(i * 7);
                 rect = new Rect((int) startPoint.x,
                         (int) startPoint.y - DensityUtil.dip2px(mContext, radius),
                         (int) endPoint.x,
                         (int) endPoint.y + DensityUtil.dip2px(mContext, radius));
             }
+            canvas.drawCircle(startPoint.x, startPoint.y, DensityUtil.dip2px(mContext, radius), dayLinePaint);
+            canvas.drawCircle(endPoint.x, endPoint.y, DensityUtil.dip2px(mContext, radius), dayLinePaint);
             canvas.drawRect(rect, dayLinePaint);
         }
-    }
-
-    /**
-     * 获取半弧范围
-     *
-     * @param dayPoint
-     * @return
-     */
-    private RectF getArcRectF(DayPoint dayPoint) {
-        if (dayPoint == null) return null;
-        RectF rectF = new RectF(dayPoint.x - DensityUtil.dip2px(mContext, radius),
-                dayPoint.y - DensityUtil.dip2px(mContext, radius),
-                dayPoint.x + DensityUtil.dip2px(mContext, radius),
-                dayPoint.y + DensityUtil.dip2px(mContext, radius));
-        return rectF;
     }
 
     /**
@@ -306,7 +413,7 @@ public class MyCalendarView extends View {
      * @return
      */
     private DayPoint getPoint(int day) {
-        if (dayMap == null) return null;
+        if (dayMap.size() == 0) return null;
         return dayMap.get(day);
     }
 
@@ -353,27 +460,29 @@ public class MyCalendarView extends View {
     private void onClickDay(int day) {
         if (day <= 0 || day > sumDay) return;
 
-        if (clickDayList.size() == 0) {
-            clickDayList.add(day);
-        } else if (clickDayList.size() == 1) {
-            if (clickDayList.get(0) != day) {
-                if (clickDayList.get(0) > day) {
-                    //点击的日期小于储存的日期
-                    //覆盖
-                    clickDayList.set(0, day);
-                } else {
-                    //点击的日期大于储存的日期
-                    //添加
-                    clickDayList.add(day);
-                }
-            }
-        } else if (clickDayList.size() == 2) {
-            if (clickDayList.get(0) == day || clickDayList.get(1) == day) return;
-            clickDayList.clear();
-            clickDayList.add(day);
-        }
+        CalendarData calendarData = new CalendarData();
+        calendarData.year = defaultData.year;
+        calendarData.month = defaultData.month;
+        calendarData.day = day;
+        RxBus.getInstance().post(calendarData);
     }
 
+    /**
+     * 获取当天的天数
+     * 实时，当天
+     * @param year
+     * @param month
+     * @return
+     */
+    private int getCurrentDay(int year,int month){
+        int currentDay = 0;
+        int currentYear = DateUtils.getYear();
+        int currentMonth = DateUtils.getMonth();
+        if (currentYear == year && currentMonth == month) {
+            currentDay = DateUtils.getDay();
+        }
+        return currentDay;
+    }
 
     //天
     //中心点坐标
