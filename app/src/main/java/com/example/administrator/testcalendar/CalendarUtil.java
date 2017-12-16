@@ -1,7 +1,7 @@
 package com.example.administrator.testcalendar;
 
 /**
- * Created by nat.xue on 2017\12\15 0015.
+ * Created by nat.xue on 2017\12\15
  */
 
 public class CalendarUtil {
@@ -51,11 +51,11 @@ public class CalendarUtil {
      */
     public static CalendarData newInstance(int year,int month){
         CalendarData calendarData = new CalendarData();
-        if(month < 0 || month > 13 || year < 0) return calendarData;
+        if(month < 0 || year < 0) return calendarData;
         if(month == 0){
             month = 12;
             year -= 1;
-        }else if(month == 13){
+        } else if(month == 13){
             month = 1;
             year += 1;
         }

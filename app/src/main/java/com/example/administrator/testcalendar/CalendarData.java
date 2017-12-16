@@ -3,7 +3,7 @@ package com.example.administrator.testcalendar;
 import java.io.Serializable;
 
 /**
- * Created by nat.xue on 2017\12\14 0014.
+ * Created by nat.xue on 2017\12\14
  */
 
 public class CalendarData implements Serializable {

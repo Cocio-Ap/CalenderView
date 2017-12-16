@@ -22,7 +22,7 @@ import rx.functions.Func1;
  * Created by Administrator on 2017\12\12
  */
 
-public class MyCalendarView extends View {
+public class CalView extends View {
     private Paint textBlackPaint;
     private Paint textWhitePaint;
     private Paint textCurrentDayPaint;
@@ -52,11 +52,15 @@ public class MyCalendarView extends View {
     private Subscription rxSubscription;
 
 
-    public MyCalendarView(Context context) {
+    public CalView(Context context, CalendarData defaultData, List<CalendarData> clickCalList) {
         super(context);
+        this.mContext = context;
+        initPaint();
+        initData();
+        initDefaultData(defaultData,clickCalList);
     }
 
-    public MyCalendarView(Context context, @Nullable AttributeSet attrs) {
+    public CalView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         this.mContext = context;
         initPaint();
@@ -109,10 +113,10 @@ public class MyCalendarView extends View {
 
     @Override
     protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
         if (!rxSubscription.isUnsubscribed()){
             rxSubscription.unsubscribe();
         }
+        super.onDetachedFromWindow();
     }
 
     /**
@@ -122,12 +126,22 @@ public class MyCalendarView extends View {
      *                     表内数据需按升序排列
      */
     public void init(CalendarData defaultData,List<CalendarData> clickCalList){
+        initDefaultData(defaultData,clickCalList);
+        invalidate();
+    }
+
+    /**
+     * 初始化传入的的数据
+     * @param defaultData 赋值日期
+     * @param clickCalList 选中的日期列表
+     *                     表内数据需按升序排列
+     */
+    private void initDefaultData(CalendarData defaultData,List<CalendarData> clickCalList){
         if(defaultData == null || clickCalList == null) return;
         this.defaultData = defaultData;
         this.sumDay = DateUtils.getDays(defaultData.year,defaultData.month);
         this.currentDay = getCurrentDay(defaultData.year,defaultData.month);
         this.clickCalList = clickCalList;
-        invalidate();
     }
 
     private void initPaint() {

@@ -1,10 +1,9 @@
 package com.example.administrator.testcalendar;
 
-import android.content.Context;
-import android.support.v4.app.Fragment;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,25 +12,23 @@ import rx.functions.Action1;
 
 public class MainActivity extends AppCompatActivity {
     private ViewPager viewpager;
-    private List<Fragment> list;
-    private FragAdapter adapter;
-    private CalendarFragment preCalFragment,currentCalFragment,nextCalFragment;
+    private CalPagerAdapter adapter;
     private CalendarData preCalData,currentCalData,nextCalData;
     private int year;
     private int month;
     private Subscription rxSubscription;
-    private Context mContext;
     //选中的日期表
     //表内数据是按升序排列的
     private List<CalendarData> mCalList;
+    //传递List<CalendarData>数据
     private CalendarListData calendarListData;
+    private List<CalView> mListViews ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         viewpager = findViewById(R.id.viewpager);
-        this.mContext = this;
         mCalList = new ArrayList<>();
         calendarListData = new CalendarListData();
         year = DateUtils.getYear();
@@ -41,12 +38,15 @@ public class MainActivity extends AppCompatActivity {
         currentCalData = CalendarUtil.newInstance(year,month);
         nextCalData = CalendarUtil.newInstance(year,month+1);
 
-        list = new ArrayList<>();
-        list.add(CalendarFragment.newInstance(preCalData,mCalList));
-        list.add(CalendarFragment.newInstance(currentCalData,mCalList));
-        list.add(CalendarFragment.newInstance(nextCalData,mCalList));
 
-        adapter = new FragAdapter(getSupportFragmentManager(), list);
+        CalView calendarView1 = new CalView(this,preCalData,mCalList);
+        CalView calendarView2 = new CalView(this,currentCalData,mCalList);
+        CalView calendarView3 = new CalView(this,nextCalData,mCalList);
+        mListViews = new ArrayList<>();
+        mListViews.add(calendarView1);
+        mListViews.add(calendarView2);
+        mListViews.add(calendarView3);
+        adapter = new CalPagerAdapter(mListViews);
         viewpager.setAdapter(adapter);
         viewpager.setOnPageChangeListener(pageChangeListener);
         viewpager.setCurrentItem(1);
@@ -115,4 +115,10 @@ public class MainActivity extends AppCompatActivity {
             mCalList.add(data);
         }
     }
+
+//    private List<CalView> getCalViewList(int currentYear,int currentMonth,int num){
+//        List<CalView> mListViews = new ArrayList<>();
+//        CalendarData currentCalData = CalendarUtil.newInstance(year,month);
+//        for(int i )
+//    }
 }
