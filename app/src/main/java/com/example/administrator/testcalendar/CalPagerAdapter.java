@@ -21,18 +21,21 @@ public class CalPagerAdapter extends PagerAdapter{
 
     @Override
     public void destroyItem(ViewGroup container, int position, Object object)   {
+        if(mListViews == null || mListViews.size() == 0) return;
         container.removeView(mListViews.get(position));//删除页卡
     }
 
 
     @Override
-    public Object instantiateItem(ViewGroup container, int position) {  //这个方法用来实例化页卡
+    public Object instantiateItem(ViewGroup container, int position) {
+        if(mListViews == null) return new Object();
         container.addView(mListViews.get(position), 0);//添加页卡
         return mListViews.get(position);
     }
 
     @Override
     public int getCount() {
+        if(mListViews == null) return 0;
         return  mListViews.size();//返回页卡的数量
     }
 

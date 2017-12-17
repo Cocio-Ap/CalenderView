@@ -38,7 +38,7 @@ public class CalView extends View {
     //日期与中心店映射表
     private HashMap<Integer, DayPoint> dayMap;
     //圆的半径（dp）
-    private int radius = 20;
+    private final int radius = 20;
     //天数
     private int sumDay;
     //当天
@@ -120,7 +120,7 @@ public class CalView extends View {
     }
 
     /**
-     *
+     * XML布局初始化View时，需调用这个方法
      * @param defaultData 赋值日期
      * @param clickCalList 选中的日期列表
      *                     表内数据需按升序排列
@@ -186,7 +186,7 @@ public class CalView extends View {
                 .map(new Func1<CalendarListData, List<CalendarData>>() {
                     @Override
                     public List<CalendarData> call(CalendarListData calendarListData) {
-                        return calendarListData.mCalData;
+                        return calendarListData.mClickCalList;
                     }
                 })
                 .subscribe(new Action1<List<CalendarData>>() {
@@ -204,11 +204,11 @@ public class CalView extends View {
      */
     private void drawTitleDay(Canvas canvas) {
         //初始X坐标（dp）
-        int defaultX = 20;
+        final int defaultX = 20;
         //初始Y坐标（dp）
-        int defaultY = 20;
+        final int defaultY = 20;
         //左右边距之和（dp）
-        int sumMargin = 40;
+        final int sumMargin = 40;
         //获取单字的宽度
         float textWidth = titleDayPaint.measureText("六");
         //字与字之间的宽度
@@ -248,13 +248,13 @@ public class CalView extends View {
         //默认文本
         String defaultText = "20";
         //初始X坐标（dp）
-        int defaultX = 20;
+        final int defaultX = 20;
         //初始Y坐标（dp）
-        int defaultY = 130;
+        final int defaultY = 130;
         //左右边距之和（dp）
-        int sumMargin = 40;
+        final int sumMargin = 40;
         //行间距（dp）
-        int defaultHeight = 30;
+        final int defaultHeight = 30;
         //获取单日的宽度
         float textWidth = titleDayPaint.measureText(defaultText);
         //获取文字的高度

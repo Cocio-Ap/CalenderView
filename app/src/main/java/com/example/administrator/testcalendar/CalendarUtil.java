@@ -51,14 +51,25 @@ public class CalendarUtil {
      */
     public static CalendarData newInstance(int year,int month){
         CalendarData calendarData = new CalendarData();
-        if(month < 0 || year < 0) return calendarData;
-        if(month == 0){
-            month = 12;
-            year -= 1;
-        } else if(month == 13){
-            month = 1;
-            year += 1;
+        if(month >= 0 ){
+            if(month % 12 == 0){
+                year = year + (month/12) - 1;
+                month = 12;
+            }else{
+                year = year + (month/12);
+                month = month % 12;
+            }
+        }else{
+            month = Math.abs(month);
+            if(month % 12 == 0){
+                year = year - (month/12) - 1;
+                month = 12;
+            }else{
+                year = year - (month/12) - 1;
+                month = 12 - month % 12;
+            }
         }
+
         calendarData.month = month;
         calendarData.year = year;
         return calendarData;

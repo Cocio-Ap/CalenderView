@@ -11,54 +11,40 @@ import rx.Subscription;
 import rx.functions.Action1;
 
 public class MainActivity extends AppCompatActivity {
-    private ViewPager viewpager;
-    private CalPagerAdapter adapter;
-    private CalendarData preCalData,currentCalData,nextCalData;
-    private int year;
-    private int month;
+    //选中点的个数
+    private final int DEFAULT_CLICK_CALENDER_NUM = 2;
+    private final int CALENDER_VIEW_NUM = 100;
     private Subscription rxSubscription;
     //选中的日期表
     //表内数据是按升序排列的
     private List<CalendarData> mCalList;
     //传递List<CalendarData>数据
     private CalendarListData calendarListData;
-    private List<CalView> mListViews ;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        viewpager = findViewById(R.id.viewpager);
-        mCalList = new ArrayList<>();
+        ViewPager viewpager = findViewById(R.id.viewpager);
+        mCalList = new ArrayList<>(DEFAULT_CLICK_CALENDER_NUM);
         calendarListData = new CalendarListData();
-        year = DateUtils.getYear();
-        month = DateUtils.getMonth();
+        int year = DateUtils.getYear();
+        int month = DateUtils.getMonth();
 
-        preCalData = CalendarUtil.newInstance(year,month-1);
-        currentCalData = CalendarUtil.newInstance(year,month);
-        nextCalData = CalendarUtil.newInstance(year,month+1);
-
-
-        CalView calendarView1 = new CalView(this,preCalData,mCalList);
-        CalView calendarView2 = new CalView(this,currentCalData,mCalList);
-        CalView calendarView3 = new CalView(this,nextCalData,mCalList);
-        mListViews = new ArrayList<>();
-        mListViews.add(calendarView1);
-        mListViews.add(calendarView2);
-        mListViews.add(calendarView3);
-        adapter = new CalPagerAdapter(mListViews);
+        List<CalView> mListViews = getCalViewList(year, month,CALENDER_VIEW_NUM);
+        CalPagerAdapter adapter = new CalPagerAdapter(mListViews);
         viewpager.setAdapter(adapter);
-        viewpager.setOnPageChangeListener(pageChangeListener);
-        viewpager.setCurrentItem(1);
+        //将mListViews.size的中心设为初始显示界面
+        viewpager.setCurrentItem((mListViews.size()-1)/2);
 
 
-        //监听不同Fragment中传递过来的点击日期
+        //监听不同CalenderView中传递过来的点击日期
         rxSubscription = RxBus.getInstance().toObserverable(CalendarData.class)
                 .subscribe(new Action1<CalendarData>() {
                     @Override
                     public void call(CalendarData data) {
                         onReceiveClickData(data);
-                        calendarListData.mCalData = mCalList;
+                        calendarListData.mClickCalList = mCalList;
                         RxBus.getInstance().post(calendarListData);
                     }
                 });
@@ -66,28 +52,11 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         if (!rxSubscription.isUnsubscribed()){
             rxSubscription.unsubscribe();
         }
+        super.onDestroy();
     }
-
-    private ViewPager.OnPageChangeListener pageChangeListener = new ViewPager.OnPageChangeListener() {
-        @Override
-        public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-
-        }
-
-        @Override
-        public void onPageSelected(int position) {
-
-        }
-
-        @Override
-        public void onPageScrollStateChanged(int state) {
-
-        }
-    };
 
     /**
      * 接收到CalendarData 数据后的处理
@@ -116,9 +85,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-//    private List<CalView> getCalViewList(int currentYear,int currentMonth,int num){
-//        List<CalView> mListViews = new ArrayList<>();
-//        CalendarData currentCalData = CalendarUtil.newInstance(year,month);
-//        for(int i )
-//    }
+    /**
+     * 获取CalenderView List
+     * 返回的数据是以year，month为中心，前后各加num个View的集合
+     * @param year 年
+     * @param month 月
+     * @param num CalenderView个数
+     * @return List<CalView>
+     */
+    private List<CalView> getCalViewList(int year,int month,int num){
+        List<CalView> mListViews = new ArrayList<>();
+        CalendarData calData;
+        CalView calendarView;
+        //以year，month为中心，前后各加num个View的集合
+        for(int i = -num;i <= num;i++ ){
+            calData = CalendarUtil.newInstance(year,month + i);
+            calendarView = new CalView(this,calData,mCalList);
+            mListViews.add(calendarView);
+        }
+        return mListViews;
+    }
 }

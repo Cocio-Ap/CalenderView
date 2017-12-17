@@ -1,5 +1,6 @@
 package com.example.administrator.testcalendar;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -7,5 +8,11 @@ import java.util.List;
  */
 
 public class CalendarListData {
-    public List<CalendarData> mCalData;
+    private final int DEFAULT_CLICK_CALENDER_NUM = 2;
+    //选中日期的集合
+    public List<CalendarData> mClickCalList;
+
+    public CalendarListData(){
+        mClickCalList = new ArrayList<>(DEFAULT_CLICK_CALENDER_NUM);
+    }
 }
